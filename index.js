@@ -41,8 +41,6 @@ const fanStatus = {
 	high: 100
 };
 
-// #sudo ./sendook  -f 304200000 -0 333 -1 333 -r 3 -p 10000 101101101101101101101101101100100100100
-
 // maintain a current state of the fans
 // this gets setup in the initSetup function
 var currentState = {};
@@ -63,9 +61,10 @@ const initSetup = () => {
 };
 
 
+// #sudo ./sendook  -f 304200000 -0 333 -1 333 -r 3 -p 10000 101101101101101101101101101100100100100
 const sendCommand = ({device, command}) => {
-	exec(`${execDirectory}sendook -f 304200000 -0 333 -1 333 -r 5 -p 10000  ${id_code}${devices[device][command]}`, (err, stdout, stderr) => {
-		console.log(stderr);
+	exec(`${execDirectory}sendook -f 304200000 -0 333 -1 333 -r 5 -p 10000  ${id_code}${devices[device][command]} | grep "Message"`, (err, stdout, stderr) => {
+		console.log(`[sendook]: ${stdout}`);
 	});
 };
 
