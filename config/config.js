@@ -1,12 +1,19 @@
 
 const devices = {
-	familyRoomFan: {
-		off: 	'fan0.iq',
-		low:	'fan1.iq',
-		medium:	'fan2.iq',
-		high:	'fan3.iq',
-		light:	'light.iq'
+	Fan: {
+		off: 	'101100101100100',
+		low:	'100100101100100',
+		medium:	'100101100100100',
+		high:	'101100100100100',
+        reverse:'100100100101100',
+		light1:	'100101100101100',
+        light2: '101100100101100'
 	}
 };
 
-module.exports = devices;
+const id_code = '101101101101101101101101';
+ 
+module.exports = {
+    devices,
+    id_code
+}
