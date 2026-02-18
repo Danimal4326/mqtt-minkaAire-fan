@@ -1,0 +1,12 @@
+[Unit]
+Description=Starts the MinkaAire fan to mqtt service
+After=multi-user.target
+
+[Service]
+Type=idle
+ExecStart=node /home/danc/mqtt-minkaAire-fan/index.js --mqtt bb-8  --exec /home/danc/bin/
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
