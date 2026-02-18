@@ -69,21 +69,28 @@ const initSetup = () => {
 
 
 // #sudo ./sendook  -f 304200000 -0 333 -1 333 -r 3 -p 10000 101101101101101101101101101100100100100
-const sendCommand = ({device, command}) => {
+const sendCommand = ({device, command, publications}) => {
     exec(`${execDirectory}sendook -f 304200000 -0 333 -1 333 -r 5 -p 10000  ${id_code}${devices[device][command]} | grep "Message"`, (err, stdout, stderr) => {
         console.log(`[sendook]: ${stdout}`);
+        if (publications) {
+            publications.forEach(p => {
+                client.publish(p.topic, p.message, p.options);
+                console.log(`publishing status to ${p.topic}: ${p.message}`);
+            });
+        }
     });
 };
 
-const queueCommand = (device, command) => {
-    commandQueue.push({device: device, command: command});
+const queueCommand = (device, command, publications = []) => {
+    commandQueue.push({device: device, command: command, publications: publications});
 };
 
 
 // constantly try to send commands after certain delays
 const processCommands = () => {
     if (commandQueue.length > 0) {
-        sendCommand(commandQueue.shift());
+        const command = commandQueue.shift();
+        sendCommand(command);
     }
     setTimeout(processCommands, commandDelay);
 };
@@ -165,15 +172,21 @@ client.on('message', (topic, message) => {
                 if (currentState[device].light1 === 'off') {
                     console.log(`turning ${device} light on`);
                     currentState[device].light1 = 'on';
-                    queueCommand(device, 'light1');
-                    client.publish(`${mqttTopicPrefix}${device}/getLight1On`, 'true', options);
+                    queueCommand(device, 'light1', [{
+                        topic: `${mqttTopicPrefix}${device}/getLight1On`,
+                        message: 'true',
+                        options: options
+                    }]);
                 }
             } else {
                 if (currentState[device].light1 !== 'off') {
                     console.log(`turning ${device} light off`);
                     currentState[device].light1 = 'off';
-                    queueCommand(device, 'light1');
-                    client.publish(`${mqttTopicPrefix}${device}/getLight1On`, 'false', options);
+                    queueCommand(device, 'light1', [{
+                        topic: `${mqttTopicPrefix}${device}/getLight1On`,
+                        message: 'false',
+                        options: options
+                    }]);
                 }
             }
             break;
@@ -182,15 +195,21 @@ client.on('message', (topic, message) => {
                 if (currentState[device].light2 === 'off') {
                     console.log(`turning ${device} light on`);
                     currentState[device].light2 = 'on';
-                    queueCommand(device, 'light2');
-                    client.publish(`${mqttTopicPrefix}${device}/getLight2On`, 'true', options);
+                    queueCommand(device, 'light2', [{
+                        topic: `${mqttTopicPrefix}${device}/getLight2On`,
+                        message: 'true',
+                        options: options
+                    }]);
                 }
             } else {
                 if (currentState[device].light2 !== 'off') {
                     console.log(`turning ${device} light off`);
                     currentState[device].light2 = 'off';
-                    queueCommand(device, 'light2');
-                    client.publish(`${mqttTopicPrefix}${device}/getLight2On`, 'false', options);
+                    queueCommand(device, 'light2', [{
+                        topic: `${mqttTopicPrefix}${device}/getLight2On`,
+                        message: 'false',
+                        options: options
+                    }]);
                 }
             }
             break;
@@ -205,9 +224,10 @@ client.on('message', (topic, message) => {
                     }
                     currentState[device].fanActive = '1';
                     console.log(`turning ${device} fan to on / ${fanSpeed}`);
-                    queueCommand(device, fanSpeed);
-                    client.publish(`${mqttTopicPrefix}${device}/getFanOn`, '1', options);
-                    client.publish(`${mqttTopicPrefix}${device}/getRotationSpeed`, fanStatus[fanSpeed].toString(), options);
+                    queueCommand(device, fanSpeed, [
+                        { topic: `${mqttTopicPrefix}${device}/getFanOn`, message: '1', options: options },
+                        { topic: `${mqttTopicPrefix}${device}/getRotationSpeed`, message: fanStatus[fanSpeed].toString(), options: options }
+                    ]);
                 } else {
                     console.log(`${device} fan is already on`);
                     client.publish(`${mqttTopicPrefix}${device}/getFanOn`, '1', options);
@@ -216,8 +236,11 @@ client.on('message', (topic, message) => {
                 const fanSpeed = convertSpeedToMode(0);
                 currentState[device].fanActive = '0';
                 console.log(`turning ${device} fan off`);
-                queueCommand(device, fanSpeed);
-                client.publish(`${mqttTopicPrefix}${device}/getFanOn`, '0', options);
+                queueCommand(device, fanSpeed, [{
+                    topic: `${mqttTopicPrefix}${device}/getFanOn`,
+                    message: '0',
+                    options: options
+                }]);
             }
             break;
         case 'setRotationSpeed':
@@ -229,15 +252,19 @@ client.on('message', (topic, message) => {
                 currentState[device].fanActive = '1';
             }
             console.log(`turning ${device} fan to ${message} / ${fanSpeed}`);
-            queueCommand(device, fanSpeed);
-            client.publish(`${mqttTopicPrefix}${device}/getRotationSpeed`, fanStatus[fanSpeed].toString(), options);
-            client.publish(`${mqttTopicPrefix}${device}/getFanOn`, currentState[device].fanActive, options);
+            queueCommand(device, fanSpeed, [
+                { topic: `${mqttTopicPrefix}${device}/getRotationSpeed`, message: fanStatus[fanSpeed].toString(), options: options },
+                { topic: `${mqttTopicPrefix}${device}/getFanOn`, message: currentState[device].fanActive, options: options }
+            ]);
             break;
         case 'setRotationDirection':
             currentState[device].fanDirection = message;
             console.log(`turning ${device} direction to ${message}`);
-            queueCommand(device, 'reverse');
-            client.publish(`${mqttTopicPrefix}${device}/getRotationDirection`, currentState[device].fanDirection, options);
+            queueCommand(device, 'reverse', [{
+                topic: `${mqttTopicPrefix}${device}/getRotationDirection`,
+                message: currentState[device].fanDirection,
+                options: options
+            }]);
             break;
         default:
             console.log('invalid message');
