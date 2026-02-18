@@ -237,10 +237,8 @@ client.on('message', (topic, message) => {
             currentState[device].fanDirection = message;
             console.log(`turning ${device} direction to ${message}`);
             queueCommand(device, 'reverse');
-            client.publish(`${mqttTopicPrefix}${device}/getRotationDirection`, message, options);
+            client.publish(`${mqttTopicPrefix}${device}/getRotationDirection`, currentState[device].fanDirection, options);
             break;
-
-
         default:
             console.log('invalid message');
     }
