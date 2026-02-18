@@ -102,10 +102,14 @@ console.log(`connecting to mqtt broker: ${mqttHost}`);
 const client = mqtt.connect(`mqtt://${mqttHost}`);
 
 client.on('connect', () => {
+    const options = {
+        qos: 1,
+        retain: true
+    };
     console.log('mqtt connected');
     Object.keys(devices).forEach((item) => {
         console.log(`subscribing to ${item} statuses`);
-        client.publish(`${item}/connected`, 'true');
+        client.publish(`${item}/connected`, 'true', options);
         client.subscribe(`${item}/setFanOn`);
         client.subscribe(`${item}/setRotationSpeed`);
         client.subscribe(`${item}/setRotationDirection`);
@@ -123,6 +127,11 @@ client.on('message', (topic, message) => {
     topic = topic.toString();
     message = message.toString();
 
+    const options = {
+        qos: 1,
+        retain: true
+    };
+
     console.log(`new message\ntopic: ${topic}\nmessage: ${message}`);
 
     if (topic.split('/').length != 2) {
@@ -138,14 +147,14 @@ client.on('message', (topic, message) => {
                     console.log(`turning ${device} light on`);
                     currentState[device].light1 = 'on';
                     queueCommand(device, 'light1');
-                    client.publish(`${device}/getLight1On`, 'true');
+                    client.publish(`${device}/getLight1On`, 'true', options);
                 }
             } else {
                 if (currentState[device].light1 !== 'off') {
                     console.log(`turning ${device} light off`);
                     currentState[device].light1 = 'off';
                     queueCommand(device, 'light1');
-                    client.publish(`${device}/getLight1On`, 'false');
+                    client.publish(`${device}/getLight1On`, 'false', options);
                 }
             }
             break;
@@ -155,14 +164,14 @@ client.on('message', (topic, message) => {
                     console.log(`turning ${device} light on`);
                     currentState[device].light2 = 'on';
                     queueCommand(device, 'light2');
-                    client.publish(`${device}/getLight2On`, 'true');
+                    client.publish(`${device}/getLight2On`, 'true', options);
                 }
             } else {
                 if (currentState[device].light2 !== 'off') {
                     console.log(`turning ${device} light off`);
                     currentState[device].light2 = 'off';
                     queueCommand(device, 'light2');
-                    client.publish(`${device}/getLight2On`, 'false');
+                    client.publish(`${device}/getLight2On`, 'false', options);
                 }
             }
             break;
@@ -174,18 +183,18 @@ client.on('message', (topic, message) => {
                     currentState[device].fanActive = 'true';
                     console.log(`turning ${device} fan to on / ${fanSpeed}`);
                     queueCommand(device, fanSpeed);
-                    client.publish(`${device}/getFanOn`, 'true');
-                    client.publish(`${device}/getRotationSpeed`, fanStatus[fanSpeed].toString());
+                    client.publish(`${device}/getFanOn`, 'true', options);
+                    client.publish(`${device}/getRotationSpeed`, fanStatus[fanSpeed].toString(), options);
                 } else {
                     console.log(`${device} fan is already on`);
-                    client.publish(`${device}/getFanOn`, 'true');
+                    client.publish(`${device}/getFanOn`, 'true', options);
                 }
             } else {
                 const fanSpeed = convertSpeedToMode(0);
                 currentState[device].fanActive = 'false';
                 console.log(`turning ${device} fan off`);
                 queueCommand(device, fanSpeed);
-                client.publish(`${device}/getFanOn`, 'false');
+                client.publish(`${device}/getFanOn`, 'false', options);
             }
             break;
         case 'setRotationSpeed':
@@ -198,14 +207,14 @@ client.on('message', (topic, message) => {
             }
             console.log(`turning ${device} fan to ${message} / ${fanSpeed}`);
             queueCommand(device, fanSpeed);
-            client.publish(`${device}/getRotationSpeed`, fanStatus[fanSpeed].toString());
-            client.publish(`${device}/getFanOn`, currentState[device].fanActive);
+            client.publish(`${device}/getRotationSpeed`, fanStatus[fanSpeed].toString(), options);
+            client.publish(`${device}/getFanOn`, currentState[device].fanActive, options);
             break;
         case 'setRotationDirection':
             currentState[device].fanDirection = message;
             console.log(`turning ${device} direction to ${message}`);
             queueCommand(device, 'reverse');
-            client.publish(`${device}/getRotationDirection`, message);
+            client.publish(`${device}/getRotationDirection`, message, options);
             break;
 
 
