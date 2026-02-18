@@ -58,9 +58,9 @@ var commandQueue = [];
 const initSetup = () => {
     Object.keys(devices).forEach(element => {
         currentState[element] = {};
-        currentState[element].fan = 'low';
-        currentState[element].fanActive = 'false';
-        currentState[element].fanDirection = '0';
+        currentState[element].fanSpeed = 'low';
+        currentState[element].fanActive = '0';
+        currentState[element].fanDirection = '1'; // Summer Mode
         currentState[element].light1 = 'off';
         currentState[element].light2 = 'off';
         queueCommand(element, 'off');
@@ -196,37 +196,37 @@ client.on('message', (topic, message) => {
             break;
         case 'setFanOn':
             if (isTrue(message)) {
-                if (currentState[device].fanActive === 'false') {
+                if (currentState[device].fanActive === '0') {
                     // by default, set fan speed to low
-                    let fanSpeed = currentState[device].fan;
+                    let fanSpeed = currentState[device].fanSpeed;
                     if (fanSpeed === 'off') {
                         fanSpeed = 'low';
-                        currentState[device].fan = 'low';
+                        currentState[device].fanSpeed = 'low';
                     }
-                    currentState[device].fanActive = 'true';
+                    currentState[device].fanActive = '1';
                     console.log(`turning ${device} fan to on / ${fanSpeed}`);
                     queueCommand(device, fanSpeed);
-                    client.publish(`${mqttTopicPrefix}${device}/getFanOn`, 'true', options);
+                    client.publish(`${mqttTopicPrefix}${device}/getFanOn`, '1', options);
                     client.publish(`${mqttTopicPrefix}${device}/getRotationSpeed`, fanStatus[fanSpeed].toString(), options);
                 } else {
                     console.log(`${device} fan is already on`);
-                    client.publish(`${mqttTopicPrefix}${device}/getFanOn`, 'true', options);
+                    client.publish(`${mqttTopicPrefix}${device}/getFanOn`, '1', options);
                 }
             } else {
                 const fanSpeed = convertSpeedToMode(0);
-                currentState[device].fanActive = 'false';
+                currentState[device].fanActive = '0';
                 console.log(`turning ${device} fan off`);
                 queueCommand(device, fanSpeed);
-                client.publish(`${mqttTopicPrefix}${device}/getFanOn`, 'false', options);
+                client.publish(`${mqttTopicPrefix}${device}/getFanOn`, '0', options);
             }
             break;
         case 'setRotationSpeed':
             const fanSpeed = convertSpeedToMode(message);
-            currentState[device].fan = fanSpeed;
+            currentState[device].fanSpeed = fanSpeed;
             if ( fanSpeed === 'off' ) {
-                currentState[device].fanActive = 'false';
+                currentState[device].fanActive = '0';
             } else {
-                currentState[device].fanActive = 'true';
+                currentState[device].fanActive = '1';
             }
             console.log(`turning ${device} fan to ${message} / ${fanSpeed}`);
             queueCommand(device, fanSpeed);
@@ -234,10 +234,12 @@ client.on('message', (topic, message) => {
             client.publish(`${mqttTopicPrefix}${device}/getFanOn`, currentState[device].fanActive, options);
             break;
         case 'setRotationDirection':
-            currentState[device].fanDirection = message;
-            console.log(`turning ${device} direction to ${message}`);
-            queueCommand(device, 'reverse');
-            client.publish(`${mqttTopicPrefix}${device}/getRotationDirection`, message, options);
+            if (currentState[device].fanDirection !== message) {
+                currentState[device].fanDirection = message;
+                console.log(`turning ${device} direction to ${message}`);
+                queueCommand(device, 'reverse');
+                client.publish(`${mqttTopicPrefix}${device}/getRotationDirection`, message, options);
+            }
             break;
 
 
