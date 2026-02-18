@@ -234,12 +234,10 @@ client.on('message', (topic, message) => {
             client.publish(`${mqttTopicPrefix}${device}/getFanOn`, currentState[device].fanActive, options);
             break;
         case 'setRotationDirection':
-            if (currentState[device].fanDirection !== message) {
-                currentState[device].fanDirection = message;
-                console.log(`turning ${device} direction to ${message}`);
-                queueCommand(device, 'reverse');
-                client.publish(`${mqttTopicPrefix}${device}/getRotationDirection`, message, options);
-            }
+            currentState[device].fanDirection = message;
+            console.log(`turning ${device} direction to ${message}`);
+            queueCommand(device, 'reverse');
+            client.publish(`${mqttTopicPrefix}${device}/getRotationDirection`, message, options);
             break;
 
 
