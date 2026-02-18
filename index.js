@@ -21,6 +21,11 @@ const argv = yargs
         alias: 'exec',
         type: 'string'
     })
+    .option('mqttTopicPrefix', {
+        description: 'Topic prefix for MQTT',
+        alias: 'prefix',
+        type: 'string'
+    })
     .help()
     .alias('help', 'h')
     .argv;
@@ -29,6 +34,7 @@ const argv = yargs
 const iqDirectory = (argv.iqDirectory) ? argv.iqDirectory : '/usr/src/app/fan-recordings/';
 const execDirectory = (argv.execDirectory) ? argv.execDirectory : '/usr/src/app/rpitx/';
 const mqttHost = (argv.mqttHost) ? argv.mqttHost : 'localhost';
+const mqttTopicPrefix = (argv.mqttTopicPrefix) ? (argv.mqttTopicPrefix.endsWith('/') ? argv.mqttTopicPrefix : argv.mqttTopicPrefix + '/') : '';
 
 // delay between executing commands
 const commandDelay = 100;
@@ -94,6 +100,10 @@ const convertSpeedToMode = (speed) => {
     return 'off';
 };
 
+const isTrue = (val) => {
+    const s = val.toString().toLowerCase();
+    return s === 'true' || s === 'on' || s === '1';
+};
 
 
 initSetup();
@@ -109,15 +119,15 @@ client.on('connect', () => {
     console.log('mqtt connected');
     Object.keys(devices).forEach((item) => {
         console.log(`subscribing to ${item} statuses`);
-        client.publish(`${item}/connected`, 'true', options);
-        client.subscribe(`${item}/setFanOn`);
-        client.subscribe(`${item}/setRotationSpeed`);
-        client.subscribe(`${item}/setRotationDirection`);
+        client.publish(`${mqttTopicPrefix}${item}/connected`, 'true', options);
+        client.subscribe(`${mqttTopicPrefix}${item}/setFanOn`);
+        client.subscribe(`${mqttTopicPrefix}${item}/setRotationSpeed`);
+        client.subscribe(`${mqttTopicPrefix}${item}/setRotationDirection`);
         if (devices[item]['light1']) {
-            client.subscribe(`${item}/setLight1On`);
+            client.subscribe(`${mqttTopicPrefix}${item}/setLight1On`);
         }
         if (devices[item]['light2']) {
-            client.subscribe(`${item}/setLight2On`);
+            client.subscribe(`${mqttTopicPrefix}${item}/setLight2On`);
         }
     });
 });
@@ -134,67 +144,80 @@ client.on('message', (topic, message) => {
 
     console.log(`new message\ntopic: ${topic}\nmessage: ${message}`);
 
-    if (topic.split('/').length != 2) {
+    let cleanTopic = topic;
+    if (mqttTopicPrefix && topic.startsWith(mqttTopicPrefix)) {
+        cleanTopic = topic.substring(mqttTopicPrefix.length);
+    }
+
+    const lastSlash = cleanTopic.lastIndexOf('/');
+    if (lastSlash === -1) {
         return;
     }
 
-    let [device, action] = topic.split('/');
+    const device = cleanTopic.substring(0, lastSlash);
+    const action = cleanTopic.substring(lastSlash + 1);
+
+    if (!devices[device]) return;
 
     switch (action) {
         case 'setLight1On':
-            if (message === 'true') {
+            if (isTrue(message)) {
                 if (currentState[device].light1 === 'off') {
                     console.log(`turning ${device} light on`);
                     currentState[device].light1 = 'on';
                     queueCommand(device, 'light1');
-                    client.publish(`${device}/getLight1On`, 'true', options);
+                    client.publish(`${mqttTopicPrefix}${device}/getLight1On`, 'true', options);
                 }
             } else {
                 if (currentState[device].light1 !== 'off') {
                     console.log(`turning ${device} light off`);
                     currentState[device].light1 = 'off';
                     queueCommand(device, 'light1');
-                    client.publish(`${device}/getLight1On`, 'false', options);
+                    client.publish(`${mqttTopicPrefix}${device}/getLight1On`, 'false', options);
                 }
             }
             break;
         case 'setLight2On':
-            if (message === 'true') {
+            if (isTrue(message)) {
                 if (currentState[device].light2 === 'off') {
                     console.log(`turning ${device} light on`);
                     currentState[device].light2 = 'on';
                     queueCommand(device, 'light2');
-                    client.publish(`${device}/getLight2On`, 'true', options);
+                    client.publish(`${mqttTopicPrefix}${device}/getLight2On`, 'true', options);
                 }
             } else {
                 if (currentState[device].light2 !== 'off') {
                     console.log(`turning ${device} light off`);
                     currentState[device].light2 = 'off';
                     queueCommand(device, 'light2');
-                    client.publish(`${device}/getLight2On`, 'false', options);
+                    client.publish(`${mqttTopicPrefix}${device}/getLight2On`, 'false', options);
                 }
             }
             break;
         case 'setFanOn':
-            if (message === 'true') {
+            if (isTrue(message)) {
                 if (currentState[device].fanActive === 'false') {
                     // by default, set fan speed to low
-                    const fanSpeed = currentState[device].fan;
+                    let fanSpeed = currentState[device].fan;
+                    if (fanSpeed === 'off') {
+                        fanSpeed = 'low';
+                        currentState[device].fan = 'low';
+                    }
                     currentState[device].fanActive = 'true';
                     console.log(`turning ${device} fan to on / ${fanSpeed}`);
                     queueCommand(device, fanSpeed);
-                    client.publish(`${device}/getFanOn`, 'true', options);
-                    client.publish(`${device}/getRotationSpeed`, fanStatus[fanSpeed].toString(), options);
+                    client.publish(`${mqttTopicPrefix}${device}/getFanOn`, 'true', options);
+                    client.publish(`${mqttTopicPrefix}${device}/getRotationSpeed`, fanStatus[fanSpeed].toString(), options);
                 } else {
                     console.log(`${device} fan is already on`);
-                    client.publish(`${device}/getFanOn`, 'true', options);
+                    client.publish(`${mqttTopicPrefix}${device}/getFanOn`, 'true', options);
                 }
             } else {
                 const fanSpeed = convertSpeedToMode(0);
                 currentState[device].fanActive = 'false';
                 console.log(`turning ${device} fan off`);
                 queueCommand(device, fanSpeed);
-                client.publish(`${device}/getFanOn`, 'false', options);
+                client.publish(`${mqttTopicPrefix}${device}/getFanOn`, 'false', options);
             }
             break;
         case 'setRotationSpeed':
@@ -207,14 +230,14 @@ client.on('message', (topic, message) => {
             }
             console.log(`turning ${device} fan to ${message} / ${fanSpeed}`);
             queueCommand(device, fanSpeed);
-            client.publish(`${device}/getRotationSpeed`, fanStatus[fanSpeed].toString(), options);
-            client.publish(`${device}/getFanOn`, currentState[device].fanActive, options);
+            client.publish(`${mqttTopicPrefix}${device}/getRotationSpeed`, fanStatus[fanSpeed].toString(), options);
+            client.publish(`${mqttTopicPrefix}${device}/getFanOn`, currentState[device].fanActive, options);
             break;
         case 'setRotationDirection':
             currentState[device].fanDirection = message;
             console.log(`turning ${device} direction to ${message}`);
             queueCommand(device, 'reverse');
-            client.publish(`${device}/getRotationDirection`, message, options);
+            client.publish(`${mqttTopicPrefix}${device}/getRotationDirection`, message, options);
             break;
 
 
@@ -222,4 +245,3 @@ client.on('message', (topic, message) => {
             console.log('invalid message');
     }
 });
-
