@@ -61,23 +61,19 @@ const initSetup = () => {
         currentState[element].fanSpeed = 'low';
         currentState[element].fanActive = '0';
         currentState[element].fanDirection = '1'; // Summer Mode
-        currentState[element].light1 = 'off';
-        currentState[element].light2 = 'off';
     });
 };
 
 
 // #sudo ./sendook  -f 304200000 -0 333 -1 333 -r 3 -p 10000 101101101101101101101101101100100100100
 const sendCommand = ({device, command, publications}) => {
-    exec(`${execDirectory}sendook -f 304200000 -0 333 -1 333 -r 5 -p 10000  ${id_code}${devices[device][command]} | grep "Message"`, (err, stdout, stderr) => {
-        console.log(`[sendook]: ${stdout}`);
+        console.log(`[sendook]: ${command}`);
         if (publications) {
             publications.forEach(p => {
                 client.publish(p.topic, p.message, p.options);
                 console.log(`publishing status to ${p.topic}: ${p.message}`);
             });
         }
-    });
 };
 
 const queueCommand = (device, command, publications = []) => {
@@ -136,15 +132,6 @@ client.on('connect', () => {
         client.subscribe(`${mqttTopicPrefix}${item}/getFanOn`);
         client.subscribe(`${mqttTopicPrefix}${item}/getRotationSpeed`);
         client.subscribe(`${mqttTopicPrefix}${item}/getRotationDirection`);
-
-        if (devices[item]['light1']) {
-            client.subscribe(`${mqttTopicPrefix}${item}/setLight1On`);
-            client.subscribe(`${mqttTopicPrefix}${item}/getLight1On`);
-        }
-        if (devices[item]['light2']) {
-            client.subscribe(`${mqttTopicPrefix}${item}/setLight2On`);
-            client.subscribe(`${mqttTopicPrefix}${item}/getLight2On`);
-        }
     });
 
     // After a delay, publish current state to ensure consistency.
@@ -156,12 +143,6 @@ client.on('connect', () => {
             client.publish(`${mqttTopicPrefix}${device}/getFanOn`, currentState[device].fanActive, options);
             client.publish(`${mqttTopicPrefix}${device}/getRotationSpeed`, fanStatus[currentState[device].fanSpeed].toString(), options);
             client.publish(`${mqttTopicPrefix}${device}/getRotationDirection`, currentState[device].fanDirection, options);
-            if (devices[device]['light1']) {
-                client.publish(`${mqttTopicPrefix}${device}/getLight1On`, currentState[device].light1 === 'on' ? 'true' : 'false', options);
-            }
-            if (devices[device]['light2']) {
-                client.publish(`${mqttTopicPrefix}${device}/getLight2On`, currentState[device].light2 === 'on' ? 'true' : 'false', options);
-            }
         });
     }, 2000); // 2-second delay
 });
@@ -196,14 +177,6 @@ client.on('message', (topic, message) => {
     switch (action) {
         // STATE SYNC from retained messages.
         // We update our internal state and then stop to prevent sending commands.
-        case 'getLight1On':
-            currentState[device].light1 = isTrue(message) ? 'on' : 'off';
-            console.log(`[State Sync] ${device} light1 is now ${currentState[device].light1}`);
-            return;
-        case 'getLight2On':
-            currentState[device].light2 = isTrue(message) ? 'on' : 'off';
-            console.log(`[State Sync] ${device} light2 is now ${currentState[device].light2}`);
-            return;
         case 'getFanOn':
             currentState[device].fanActive = message.toString(); // '0' or '1'
             console.log(`[State Sync] ${device} fanActive is now ${currentState[device].fanActive}`);
@@ -219,52 +192,6 @@ client.on('message', (topic, message) => {
             return;
 
         // COMMANDS from HomeKit to change device state.
-        case 'setLight1On':
-            if (isTrue(message)) {
-                if (currentState[device].light1 === 'off') {
-                    console.log(`turning ${device} light on`);
-                    currentState[device].light1 = 'on';
-                    queueCommand(device, 'light1', [{
-                        topic: `${mqttTopicPrefix}${device}/getLight1On`,
-                        message: 'true',
-                        options: options
-                    }]);
-                }
-            } else {
-                if (currentState[device].light1 !== 'off') {
-                    console.log(`turning ${device} light off`);
-                    currentState[device].light1 = 'off';
-                    queueCommand(device, 'light1', [{
-                        topic: `${mqttTopicPrefix}${device}/getLight1On`,
-                        message: 'false',
-                        options: options
-                    }]);
-                }
-            }
-            break;
-        case 'setLight2On':
-            if (isTrue(message)) {
-                if (currentState[device].light2 === 'off') {
-                    console.log(`turning ${device} light on`);
-                    currentState[device].light2 = 'on';
-                    queueCommand(device, 'light2', [{
-                        topic: `${mqttTopicPrefix}${device}/getLight2On`,
-                        message: 'true',
-                        options: options
-                    }]);
-                }
-            } else {
-                if (currentState[device].light2 !== 'off') {
-                    console.log(`turning ${device} light off`);
-                    currentState[device].light2 = 'off';
-                    queueCommand(device, 'light2', [{
-                        topic: `${mqttTopicPrefix}${device}/getLight2On`,
-                        message: 'false',
-                        options: options
-                    }]);
-                }
-            }
-            break;
         case 'setFanOn':
             if (isTrue(message)) {
                 if (currentState[device].fanActive === '0') {
@@ -310,15 +237,12 @@ client.on('message', (topic, message) => {
             ]);
             break;
         case 'setRotationDirection':
-            if (currentState[device].fanDirection !== message) {
                 currentState[device].fanDirection = message;
                 console.log(`turning ${device} direction to ${message}`);
-                queueCommand(device, 'reverse', [{
-                    topic: `${mqttTopicPrefix}${device}/getRotationDirection`,
-                    message: currentState[device].fanDirection,
-                    options: options
-                }]);
-            }
+                queueCommand(device, 'reverse');
+		    setTimeout(() => {
+                    client.publish(`${mqttTopicPrefix}${device}/getRotationDirection`, message, options);
+		    }, 3000);
             break;
         default:
             console.log('invalid message');
