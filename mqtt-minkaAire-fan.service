@@ -4,7 +4,7 @@ After=multi-user.target
 
 [Service]
 Type=idle
-ExecStart=node /home/danc/mqtt-minkaAire-fan/index.js --mqtt bb-8  --exec /home/danc/bin/ --mqttTopicPrefix minkaAire/
+ExecStart=node /home/danc/mqtt-minkaAire-fan/index.js --mqtt MQTT_HOST --user MQTT_USER --password MQTT_PASSWORD  --exec /home/danc/bin/ --mqttTopicPrefix minkaAire/
 Restart=always
 
 [Install]
