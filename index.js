@@ -11,6 +11,16 @@ const argv = yargs
         alias: 'mqtt',
         type: 'string'
     })
+    .option('mqttUser', {
+        description: 'Username for MQTT broker',
+        alias: 'user',
+        type: 'string'
+    })
+    .option('mqttPassword', {
+        description: 'Password for MQTT broker',
+        alias: 'password',
+        type: 'string'
+    })
     .option('iqDirectory', {
         description: 'Path to codesend binary',
         alias: 'iq',
@@ -34,6 +44,8 @@ const argv = yargs
 const iqDirectory = (argv.iqDirectory) ? argv.iqDirectory : '/usr/src/app/fan-recordings/';
 const execDirectory = (argv.execDirectory) ? argv.execDirectory : '/usr/src/app/rpitx/';
 const mqttHost = (argv.mqttHost) ? argv.mqttHost : 'localhost';
+const mqttUser = argv.mqttUser || undefined;
+const mqttPassword = argv.mqttPassword || undefined;
 const mqttTopicPrefix = (argv.mqttTopicPrefix) ? (argv.mqttTopicPrefix.endsWith('/') ? argv.mqttTopicPrefix : argv.mqttTopicPrefix + '/') : '';
 
 // delay between executing commands
@@ -67,7 +79,9 @@ const initSetup = () => {
 
 // #sudo ./sendook  -f 304200000 -0 333 -1 333 -r 3 -p 10000 101101101101101101101101101100100100100
 const sendCommand = ({device, command, publications}) => {
-        console.log(`[sendook]: ${command}`);
+        exec(`${execDirectory}sendook -f 304200000 -0 333 -1 333 -r 5 -p 10000  ${id_code}${devices[device][command]} | grep "Message"`, (err, stdout, stderr) => {
+            console.log(`[sendook]: ${command}`);
+        });
         if (publications) {
             publications.forEach(p => {
                 client.publish(p.topic, p.message, p.options);
@@ -111,7 +125,10 @@ const isTrue = (val) => {
 initSetup();
 
 console.log(`connecting to mqtt broker: ${mqttHost}`);
-const client = mqtt.connect(`mqtt://${mqttHost}`);
+const client = mqtt.connect(`mqtt://${mqttHost}`, {
+    username: mqttUser,
+    password: mqttPassword
+});
 
 client.on('connect', () => {
     const options = {
